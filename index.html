@@ -38,8 +38,8 @@
 
         <!-- User Information & Status -->
         <div id="auth-status" class="card bg-white p-4 rounded-lg mb-6 flex items-center justify-between">
-            <p id="status-message" class="text-gray-700"></p>
-            <p id="user-id-display" class="bg-gray-100 text-xs px-3 py-1 rounded-full text-gray-600"></p>
+            <p id="status-message" class="text-gray-700">Loading application...</p>
+            <p id="user-id-display" class="bg-gray-100 text-xs px-3 py-1 rounded-full text-gray-600">User ID: N/A</p>
         </div>
 
         <!-- Daily PnL Submission Form -->
@@ -61,8 +61,8 @@
                     <textarea id="note" rows="2" placeholder="My strategy was clean, but I missed the exit. Patience needed!"
                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border"></textarea>
                 </div>
-                <button type="submit" id="submit-button"
-                        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                <button type="submit" id="submit-button" disabled
+                        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-400 cursor-not-allowed transition duration-150 ease-in-out">
                     Post My PnL
                 </button>
             </form>
@@ -101,10 +101,22 @@
         let app, db, auth;
         let userId = null;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        
+        // Safely parse the config, defaulting to null if not defined
+        let firebaseConfig = null;
+        try {
+            if (typeof __firebase_config !== 'undefined') {
+                firebaseConfig = JSON.parse(__firebase_config);
+            }
+        } catch (e) {
+            console.error("Error parsing __firebase_config:", e);
+        }
+
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         const COLLECTION_PATH = `/artifacts/${appId}/public/data/trading_challenge`;
+        const submitButton = document.getElementById('submit-button');
+
 
         // --- Utility Functions ---
 
@@ -133,14 +145,35 @@
             return 'Anonymous Challenger';
         }
 
+        /** Updates the button state */
+        function setSubmitButtonState(ready) {
+            if (ready) {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Post My PnL';
+                submitButton.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                submitButton.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+            } else {
+                submitButton.disabled = true;
+                submitButton.textContent = 'Loading...';
+                submitButton.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+                submitButton.classList.add('bg-gray-400', 'cursor-not-allowed');
+            }
+        }
+
         // --- Firebase Initialization and Auth ---
 
         async function initializeFirebase() {
-            if (!firebaseConfig) {
-                showModal('Configuration Error', 'Firebase configuration is missing. Cannot initialize the application.');
+            // Check for configuration before attempting to proceed
+            if (!firebaseConfig || !firebaseConfig.apiKey) {
+                showModal('Configuration Error', 'Firebase configuration is missing or invalid. Please check the environment variables.');
+                // Keep the button disabled indefinitely if config is missing
+                setSubmitButtonState(false);
                 return;
             }
 
+            // Disable button while initializing
+            setSubmitButtonState(false);
+            
             try {
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
@@ -156,13 +189,15 @@
                     if (user) {
                         userId = user.uid;
                         // Display a generic welcome message and the actual ID
-                        statusMessage.innerHTML = `Welcome to the Challenge! Post your daily PnL below.`;
+                        statusMessage.innerHTML = `Welcome to the Challenge! You are authenticated and ready to post.`;
                         userIdDisplay.textContent = `User ID: ${userId}`;
+                        setSubmitButtonState(true); // Enable button on success
                         // Start listening for challenge data once user is authenticated
                         setupChallengeFeedListener();
                     } else {
                         // User is signed out or first time access
                         statusMessage.textContent = 'Authenticating...';
+                        setSubmitButtonState(false); // Keep button disabled while signing in
                         try {
                             if (initialAuthToken) {
                                 await signInWithCustomToken(auth, initialAuthToken);
@@ -252,13 +287,12 @@
         // Add displayName parameter
         async function submitPnLEntry(pnlAmount, note, displayName) {
             if (!userId || !db) {
+                // This block should rarely be hit now, but acts as a final fail-safe
                 showModal('Error', 'Application not fully initialized. Please wait a moment and try again.');
                 return;
             }
 
-            const submitButton = document.getElementById('submit-button');
-            submitButton.disabled = true;
-            submitButton.textContent = 'Posting...';
+            setSubmitButtonState(false); // Disable button immediately on submission
 
             try {
                 const docRef = await addDoc(collection(db, COLLECTION_PATH), {
@@ -274,8 +308,7 @@
                 console.error("Error adding document: ", e);
                 showModal('Submission Failed', 'There was an error posting your PnL. Please check your network and try again.');
             } finally {
-                submitButton.disabled = false;
-                submitButton.textContent = 'Post My PnL';
+                setSubmitButtonState(true); // Re-enable button
             }
         }
 
