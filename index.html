@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Trading Table | $10K Challenge Tracker</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for aesthetic enhancements */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        .card {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+        }
+        .pnl-positive {
+            color: #059669; /* Green-600 */
+        }
+        .pnl-negative {
+            color: #dc2626; /* Red-600 */
+        }
+        .pnl-zero {
+            color: #4b5563; /* Gray-600 */
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 sm:p-8">
+
+    <div id="app" class="max-w-4xl mx-auto">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-extrabold text-gray-900">
+                \$10K Trading Challenge Tracker
+            </h1>
+            <p class="mt-2 text-xl text-indigo-600">Discipline. Consistency. "Pay"tience.</p>
+        </header>
+
+        <!-- User Information & Status -->
+        <div id="auth-status" class="card bg-white p-4 rounded-lg mb-6 flex items-center justify-between">
+            <p id="status-message" class="text-gray-700"></p>
+            <p id="user-id-display" class="bg-gray-100 text-xs px-3 py-1 rounded-full text-gray-600"></p>
+        </div>
+
+        <!-- Daily PnL Submission Form -->
+        <div class="card bg-white p-6 rounded-lg mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-800">Submit Your Daily Trade Results</h2>
+            <form id="pnl-form" class="space-y-4">
+                <div>
+                    <label for="displayName" class="block text-sm font-medium text-gray-700">Your Trading Name</label>
+                    <input type="text" id="displayName" required placeholder="e.g., TraderX or JaneDoe"
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border">
+                </div>
+                <div>
+                    <label for="pnlAmount" class="block text-sm font-medium text-gray-700">Daily PnL (\$)</label>
+                    <input type="number" id="pnlAmount" required placeholder="e.g., 45.75 or -20.50" step="0.01"
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border">
+                </div>
+                <div>
+                    <label for="note" class="block text-sm font-medium text-gray-700">Key Insight/Lesson Learned (Optional)</label>
+                    <textarea id="note" rows="2" placeholder="My strategy was clean, but I missed the exit. Patience needed!"
+                              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border"></textarea>
+                </div>
+                <button type="submit" id="submit-button"
+                        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                    Post My PnL
+                </button>
+            </form>
+        </div>
+
+        <!-- Challenge Feed/Tracker -->
+        <div class="mb-6">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-800">Challenge Live Feed</h2>
+            <div id="loading-spinner" class="text-center py-8 text-gray-500">Loading challenge data...</div>
+            <div id="challenge-feed" class="space-y-4">
+                <!-- Data entries will be injected here -->
+            </div>
+        </div>
+
+        <!-- Custom Modal for Messages (Instead of alert()) -->
+        <div id="message-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
+            <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
+                <h3 id="modal-title" class="text-lg font-bold mb-3 text-gray-900">Message</h3>
+                <p id="modal-content" class="text-gray-700 mb-4"></p>
+                <button onclick="closeModal()" class="w-full py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp, getDocs, setDoc, doc, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Set Firebase logging level to Debug
+        setLogLevel('Debug');
+
+        // Global Firebase and App variables
+        let app, db, auth;
+        let userId = null;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        const COLLECTION_PATH = `/artifacts/${appId}/public/data/trading_challenge`;
+
+        // --- Utility Functions ---
+
+        /** Shows the custom modal instead of the banned alert() */
+        function showModal(title, content) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-content').textContent = content;
+            document.getElementById('message-modal').classList.remove('hidden');
+        }
+
+        window.closeModal = function() {
+            document.getElementById('message-modal').classList.add('hidden');
+        }
+
+        /** Formats a Date object to a readable string */
+        function formatTimestamp(timestamp) {
+            const date = timestamp.toDate();
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ' on ' + date.toLocaleDateString('en-US');
+        }
+
+        /** Fallback username generator */
+        function generateFallbackUsername(uid) {
+             if (uid && uid.length > 5) {
+                return 'Anonymous-' + uid.substring(0, 5).toUpperCase();
+            }
+            return 'Anonymous Challenger';
+        }
+
+        // --- Firebase Initialization and Auth ---
+
+        async function initializeFirebase() {
+            if (!firebaseConfig) {
+                showModal('Configuration Error', 'Firebase configuration is missing. Cannot initialize the application.');
+                return;
+            }
+
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Set local persistence for better user experience
+                await setPersistence(auth, browserLocalPersistence);
+
+                onAuthStateChanged(auth, async (user) => {
+                    const statusMessage = document.getElementById('status-message');
+                    const userIdDisplay = document.getElementById('user-id-display');
+
+                    if (user) {
+                        userId = user.uid;
+                        // Display a generic welcome message and the actual ID
+                        statusMessage.innerHTML = `Welcome to the Challenge! Post your daily PnL below.`;
+                        userIdDisplay.textContent = `User ID: ${userId}`;
+                        // Start listening for challenge data once user is authenticated
+                        setupChallengeFeedListener();
+                    } else {
+                        // User is signed out or first time access
+                        statusMessage.textContent = 'Authenticating...';
+                        try {
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                        } catch (error) {
+                            console.error("Authentication failed:", error);
+                            showModal('Authentication Failed', 'Could not sign you in to the challenge tracker. Please try refreshing.');
+                        }
+                    }
+                });
+
+                // Initial sign-in attempt
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+            } catch (error) {
+                console.error("Error during Firebase initialization:", error);
+                showModal('Initialization Error', `Failed to initialize Firebase: ${error.message}`);
+            }
+        }
+
+        // --- Firestore Data Operations ---
+
+        function setupChallengeFeedListener() {
+            const feedElement = document.getElementById('challenge-feed');
+            const loadingElement = document.getElementById('loading-spinner');
+
+            if (!db) {
+                console.error("Firestore not initialized.");
+                return;
+            }
+
+            // Query the public trading challenge collection
+            const challengeQuery = query(collection(db, COLLECTION_PATH), limit(50));
+
+            loadingElement.classList.remove('hidden');
+
+            onSnapshot(challengeQuery, (snapshot) => {
+                loadingElement.classList.add('hidden');
+                feedElement.innerHTML = ''; // Clear existing entries
+
+                // Sort data by timestamp descending (newest first) in memory
+                const entries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                entries.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+
+                if (entries.length === 0) {
+                    feedElement.innerHTML = '<p class="text-center py-6 text-gray-500">No challenge entries yet. Be the first!</p>';
+                    return;
+                }
+
+                entries.forEach(entry => {
+                    const isPositive = entry.pnlAmount >= 0;
+                    const pnlClass = isPositive ? 'pnl-positive' : 'pnl-negative';
+                    const sign = isPositive ? '+' : '';
+                    // Use the saved username, or the fallback if not set (for older entries)
+                    const username = entry.username || generateFallbackUsername(entry.userId); 
+
+                    const entryHtml = `
+                        <div class="card bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="font-bold text-lg text-gray-900">${username}</span>
+                                <span class="text-sm text-gray-500">${entry.timestamp ? formatTimestamp(entry.timestamp) : 'N/A'}</span>
+                            </div>
+                            <div class="mb-2">
+                                <span class="font-extrabold text-2xl ${pnlClass}">
+                                    ${sign}\$${parseFloat(entry.pnlAmount).toFixed(2)}
+                                </span>
+                                <span class="text-gray-500 text-sm ml-2">Daily PnL</span>
+                            </div>
+                            ${entry.note ? `<p class="text-gray-700 italic border-l-4 border-indigo-300 pl-3 pt-1">“${entry.note}”</p>` : '<p class="text-gray-500 text-sm pt-1">No note provided.</p>'}
+                        </div>
+                    `;
+                    feedElement.insertAdjacentHTML('beforeend', entryHtml);
+                });
+            }, (error) => {
+                console.error("Error listening to challenge feed:", error);
+                loadingElement.classList.add('hidden');
+                feedElement.innerHTML = '<p class="text-center py-6 text-red-500">Error loading data. Check console for details.</p>';
+            });
+        }
+
+        // Add displayName parameter
+        async function submitPnLEntry(pnlAmount, note, displayName) {
+            if (!userId || !db) {
+                showModal('Error', 'Application not fully initialized. Please wait a moment and try again.');
+                return;
+            }
+
+            const submitButton = document.getElementById('submit-button');
+            submitButton.disabled = true;
+            submitButton.textContent = 'Posting...';
+
+            try {
+                const docRef = await addDoc(collection(db, COLLECTION_PATH), {
+                    userId: userId,
+                    username: displayName.trim(), // USE THE USER-PROVIDED NAME
+                    pnlAmount: parseFloat(pnlAmount),
+                    note: note.trim(),
+                    timestamp: serverTimestamp(),
+                });
+                showModal('Success!', 'Your PnL entry has been posted to the feed!');
+                document.getElementById('pnl-form').reset();
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                showModal('Submission Failed', 'There was an error posting your PnL. Please check your network and try again.');
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Post My PnL';
+            }
+        }
+
+        // --- Event Listener ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeFirebase();
+
+            const form = document.getElementById('pnl-form');
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const nameInput = document.getElementById('displayName');
+                const pnlInput = document.getElementById('pnlAmount');
+                const noteInput = document.getElementById('note');
+
+                const displayName = nameInput.value;
+                const pnlAmount = pnlInput.value;
+                const note = noteInput.value;
+
+                if (!displayName.trim()) {
+                    showModal('Input Error', 'Please enter a name or nickname to post your PnL.');
+                    return;
+                }
+
+                if (isNaN(parseFloat(pnlAmount))) {
+                    showModal('Input Error', 'Please enter a valid number for the Daily PnL.');
+                    return;
+                }
+
+                submitPnLEntry(pnlAmount, note, displayName);
+            });
+        });
+    </script>
+</body>
+</html>
