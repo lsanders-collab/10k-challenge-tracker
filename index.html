@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Trading Table | $10K Challenge Tracker</title>
+    <title>Discord PnL Auto-Submitter</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Custom styles for aesthetic enhancements */
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f7f9fb;
@@ -15,36 +14,35 @@
         .card {
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
         }
-        .pnl-positive {
-            color: #059669; /* Green-600 */
-        }
-        .pnl-negative {
-            color: #dc2626; /* Red-600 */
-        }
-        .pnl-zero {
-            color: #4b5563; /* Gray-600 */
-        }
     </style>
 </head>
 <body class="min-h-screen p-4 sm:p-8">
 
-    <div id="app" class="max-w-4xl mx-auto">
-        <header class="text-center mb-10">
-            <h1 class="text-4xl font-extrabold text-gray-900">
-                \$10K Trading Challenge Tracker
+    <div id="app" class="max-w-2xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-extrabold text-gray-900">
+                \$10K Challenge Auto-Submitter
             </h1>
-            <p class="mt-2 text-xl text-indigo-600">Discipline. Consistency. "Pay"tience.</p>
+            <p class="mt-2 text-md text-indigo-600">Enter your PnL, click submit, and it posts automatically to Discord!</p>
         </header>
 
-        <!-- User Information & Status -->
-        <div id="auth-status" class="card bg-white p-4 rounded-lg mb-6 flex items-center justify-between">
-            <p id="status-message" class="text-gray-700">Loading application...</p>
-            <p id="user-id-display" class="bg-gray-100 text-xs px-3 py-1 rounded-full text-gray-600">User ID: N/A</p>
+        <!-- Webhook Configuration -->
+        <div class="card bg-yellow-50 p-4 rounded-lg mb-6 border border-yellow-200">
+            <h2 class="text-xl font-semibold mb-2 text-yellow-800 flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Webhook Setup (One-Time)
+            </h2>
+            <p class="text-sm text-yellow-700 mb-3">You must get a Webhook URL from your Discord server settings and paste it below. It will be saved automatically.</p>
+            <div>
+                <label for="webhookUrl" class="block text-sm font-medium text-yellow-700">Discord Webhook URL</label>
+                <input type="url" id="webhookUrl" required placeholder="https://discord.com/api/webhooks/..."
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border text-gray-700">
+            </div>
         </div>
 
-        <!-- Daily PnL Submission Form -->
+        <!-- Submission Form -->
         <div class="card bg-white p-6 rounded-lg mb-8">
-            <h2 class="text-2xl font-semibold mb-4 text-gray-800">Submit Your Daily Trade Results</h2>
+            <h2 class="text-xl font-semibold mb-4 text-gray-800">Your Daily Trading Entry</h2>
             <form id="pnl-form" class="space-y-4">
                 <div>
                     <label for="displayName" class="block text-sm font-medium text-gray-700">Your Trading Name</label>
@@ -61,66 +59,28 @@
                     <textarea id="note" rows="2" placeholder="My strategy was clean, but I missed the exit. Patience needed!"
                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border"></textarea>
                 </div>
-                <button type="submit" id="submit-button" disabled
-                        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-400 cursor-not-allowed transition duration-150 ease-in-out">
-                    Post My PnL
+                <button type="submit" id="submit-button"
+                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                    Post Directly to Discord
                 </button>
             </form>
         </div>
+    </div>
 
-        <!-- Challenge Feed/Tracker -->
-        <div class="mb-6">
-            <h2 class="text-2xl font-semibold mb-4 text-gray-800">Challenge Live Feed</h2>
-            <div id="loading-spinner" class="text-center py-8 text-gray-500">Loading challenge data...</div>
-            <div id="challenge-feed" class="space-y-4">
-                <!-- Data entries will be injected here -->
-            </div>
-        </div>
-
-        <!-- Custom Modal for Messages (Instead of alert()) -->
-        <div id="message-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
-            <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
-                <h3 id="modal-title" class="text-lg font-bold mb-3 text-gray-900">Message</h3>
-                <p id="modal-content" class="text-gray-700 mb-4"></p>
-                <button onclick="closeModal()" class="w-full py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Close</button>
-            </div>
+    <!-- Custom Modal for Messages -->
+    <div id="message-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
+            <h3 id="modal-title" class="text-lg font-bold mb-3 text-gray-900">Message</h3>
+            <p id="modal-content" class="text-gray-700 mb-4"></p>
+            <button onclick="closeModal()" class="w-full py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Close</button>
         </div>
     </div>
 
-    <!-- Firebase SDK Imports -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp, getDocs, setDoc, doc, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Set Firebase logging level to Debug
-        setLogLevel('Debug');
-
-        // Global Firebase and App variables
-        let app, db, auth;
-        let userId = null;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        
-        // Safely parse the config, defaulting to null if not defined
-        let firebaseConfig = null;
-        try {
-            if (typeof __firebase_config !== 'undefined') {
-                firebaseConfig = JSON.parse(__firebase_config);
-            }
-        } catch (e) {
-            console.error("Error parsing __firebase_config:", e);
-        }
-
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        const COLLECTION_PATH = `/artifacts/${appId}/public/data/trading_challenge`;
-        const submitButton = document.getElementById('submit-button');
-
-
+    <script>
         // --- Utility Functions ---
 
-        /** Shows the custom modal instead of the banned alert() */
+        const submitButton = document.getElementById('submit-button');
+
         function showModal(title, content) {
             document.getElementById('modal-title').textContent = title;
             document.getElementById('modal-content').textContent = content;
@@ -131,214 +91,121 @@
             document.getElementById('message-modal').classList.add('hidden');
         }
 
-        /** Formats a Date object to a readable string */
-        function formatTimestamp(timestamp) {
-            const date = timestamp.toDate();
-            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ' on ' + date.toLocaleDateString('en-US');
+        function setButtonLoading(isLoading) {
+            submitButton.disabled = isLoading;
+            submitButton.textContent = isLoading ? 'Posting...' : 'Post Directly to Discord';
+            submitButton.classList.toggle('bg-gray-400', isLoading);
+            submitButton.classList.toggle('bg-indigo-600', !isLoading);
+            submitButton.classList.toggle('hover:bg-indigo-700', !isLoading);
         }
 
-        /** Fallback username generator */
-        function generateFallbackUsername(uid) {
-             if (uid && uid.length > 5) {
-                return 'Anonymous-' + uid.substring(0, 5).toUpperCase();
-            }
-            return 'Anonymous Challenger';
-        }
+        // --- Discord Webhook Logic ---
 
-        /** Updates the button state */
-        function setSubmitButtonState(ready) {
-            if (ready) {
-                submitButton.disabled = false;
-                submitButton.textContent = 'Post My PnL';
-                submitButton.classList.remove('bg-gray-400', 'cursor-not-allowed');
-                submitButton.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
-            } else {
-                submitButton.disabled = true;
-                submitButton.textContent = 'Loading...';
-                submitButton.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
-                submitButton.classList.add('bg-gray-400', 'cursor-not-allowed');
-            }
-        }
+        async function sendDiscordWebhook(name, pnl, note, webhookUrl) {
+            setButtonLoading(true);
 
-        // --- Firebase Initialization and Auth ---
-
-        async function initializeFirebase() {
-            // Check for configuration before attempting to proceed
-            if (!firebaseConfig || !firebaseConfig.apiKey) {
-                showModal('Configuration Error', 'Firebase configuration is missing or invalid. Please check the environment variables.');
-                // Keep the button disabled indefinitely if config is missing
-                setSubmitButtonState(false);
-                return;
-            }
-
-            // Disable button while initializing
-            setSubmitButtonState(false);
+            const amount = parseFloat(pnl);
+            const isPositive = amount >= 0;
+            const absAmount = Math.abs(amount).toFixed(2);
+            const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
             
-            try {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
+            // Discord colors: GREEN (3066993), RED (15158332)
+            const color = isPositive ? 3066993 : 15158332;
 
-                // Set local persistence for better user experience
-                await setPersistence(auth, browserLocalPersistence);
-
-                onAuthStateChanged(auth, async (user) => {
-                    const statusMessage = document.getElementById('status-message');
-                    const userIdDisplay = document.getElementById('user-id-display');
-
-                    if (user) {
-                        userId = user.uid;
-                        // Display a generic welcome message and the actual ID
-                        statusMessage.innerHTML = `Welcome to the Challenge! You are authenticated and ready to post.`;
-                        userIdDisplay.textContent = `User ID: ${userId}`;
-                        setSubmitButtonState(true); // Enable button on success
-                        // Start listening for challenge data once user is authenticated
-                        setupChallengeFeedListener();
-                    } else {
-                        // User is signed out or first time access
-                        statusMessage.textContent = 'Authenticating...';
-                        setSubmitButtonState(false); // Keep button disabled while signing in
-                        try {
-                            if (initialAuthToken) {
-                                await signInWithCustomToken(auth, initialAuthToken);
-                            } else {
-                                await signInAnonymously(auth);
-                            }
-                        } catch (error) {
-                            console.error("Authentication failed:", error);
-                            showModal('Authentication Failed', 'Could not sign you in to the challenge tracker. Please try refreshing.');
+            const payload = {
+                username: `${name.trim()} - Challenge Poster`,
+                avatar_url: "https://placehold.co/100x100/4f46e5/ffffff?text=TT", // Placeholder avatar
+                embeds: [{
+                    title: `🎯 Daily PnL Submission: ${name.trim()}`,
+                    color: color,
+                    fields: [
+                        { 
+                            name: "PnL Amount", 
+                            value: `**${isPositive ? '+' : '-'}\$${absAmount}**`, 
+                            inline: true 
+                        },
+                        { 
+                            name: "Date Posted", 
+                            value: today, 
+                            inline: true 
                         }
+                    ],
+                    footer: {
+                        text: "Discipline. Consistency. 'Pay'tience."
                     }
+                }]
+            };
+
+            if (note.trim()) {
+                payload.embeds[0].fields.push({
+                    name: "Key Insight/Lesson Learned",
+                    value: `*${note.trim()}*`,
+                    inline: false
                 });
-
-                // Initial sign-in attempt
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-
-            } catch (error) {
-                console.error("Error during Firebase initialization:", error);
-                showModal('Initialization Error', `Failed to initialize Firebase: ${error.message}`);
             }
-        }
-
-        // --- Firestore Data Operations ---
-
-        function setupChallengeFeedListener() {
-            const feedElement = document.getElementById('challenge-feed');
-            const loadingElement = document.getElementById('loading-spinner');
-
-            if (!db) {
-                console.error("Firestore not initialized.");
-                return;
-            }
-
-            // Query the public trading challenge collection
-            const challengeQuery = query(collection(db, COLLECTION_PATH), limit(50));
-
-            loadingElement.classList.remove('hidden');
-
-            onSnapshot(challengeQuery, (snapshot) => {
-                loadingElement.classList.add('hidden');
-                feedElement.innerHTML = ''; // Clear existing entries
-
-                // Sort data by timestamp descending (newest first) in memory
-                const entries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                entries.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
-
-                if (entries.length === 0) {
-                    feedElement.innerHTML = '<p class="text-center py-6 text-gray-500">No challenge entries yet. Be the first!</p>';
-                    return;
-                }
-
-                entries.forEach(entry => {
-                    const isPositive = entry.pnlAmount >= 0;
-                    const pnlClass = isPositive ? 'pnl-positive' : 'pnl-negative';
-                    const sign = isPositive ? '+' : '';
-                    // Use the saved username, or the fallback if not set (for older entries)
-                    const username = entry.username || generateFallbackUsername(entry.userId); 
-
-                    const entryHtml = `
-                        <div class="card bg-gray-50 p-4 rounded-lg border border-gray-200">
-                            <div class="flex justify-between items-start mb-2">
-                                <span class="font-bold text-lg text-gray-900">${username}</span>
-                                <span class="text-sm text-gray-500">${entry.timestamp ? formatTimestamp(entry.timestamp) : 'N/A'}</span>
-                            </div>
-                            <div class="mb-2">
-                                <span class="font-extrabold text-2xl ${pnlClass}">
-                                    ${sign}\$${parseFloat(entry.pnlAmount).toFixed(2)}
-                                </span>
-                                <span class="text-gray-500 text-sm ml-2">Daily PnL</span>
-                            </div>
-                            ${entry.note ? `<p class="text-gray-700 italic border-l-4 border-indigo-300 pl-3 pt-1">“${entry.note}”</p>` : '<p class="text-gray-500 text-sm pt-1">No note provided.</p>'}
-                        </div>
-                    `;
-                    feedElement.insertAdjacentHTML('beforeend', entryHtml);
-                });
-            }, (error) => {
-                console.error("Error listening to challenge feed:", error);
-                loadingElement.classList.add('hidden');
-                feedElement.innerHTML = '<p class="text-center py-6 text-red-500">Error loading data. Check console for details.</p>';
-            });
-        }
-
-        // Add displayName parameter
-        async function submitPnLEntry(pnlAmount, note, displayName) {
-            if (!userId || !db) {
-                // This block should rarely be hit now, but acts as a final fail-safe
-                showModal('Error', 'Application not fully initialized. Please wait a moment and try again.');
-                return;
-            }
-
-            setSubmitButtonState(false); // Disable button immediately on submission
 
             try {
-                const docRef = await addDoc(collection(db, COLLECTION_PATH), {
-                    userId: userId,
-                    username: displayName.trim(), // USE THE USER-PROVIDED NAME
-                    pnlAmount: parseFloat(pnlAmount),
-                    note: note.trim(),
-                    timestamp: serverTimestamp(),
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
                 });
-                showModal('Success!', 'Your PnL entry has been posted to the feed!');
-                document.getElementById('pnl-form').reset();
-            } catch (e) {
-                console.error("Error adding document: ", e);
-                showModal('Submission Failed', 'There was an error posting your PnL. Please check your network and try again.');
+
+                if (response.ok) {
+                    showModal('Success!', `Your PnL has been posted to Discord!`);
+                    document.getElementById('pnl-form').reset();
+                } else {
+                    const errorText = await response.text();
+                    console.error("Discord Webhook Error:", response.status, errorText);
+                    showModal('Submission Failed', `Discord returned an error (${response.status}). Please check your Webhook URL.`);
+                }
+            } catch (error) {
+                console.error("Network or Fetch Error:", error);
+                showModal('Submission Failed', 'Could not connect to the Discord Webhook. Check your URL and network connection.');
             } finally {
-                setSubmitButtonState(true); // Re-enable button
+                setButtonLoading(false);
             }
         }
 
         // --- Event Listener ---
 
         document.addEventListener('DOMContentLoaded', () => {
-            initializeFirebase();
-
+            const webhookUrlInput = document.getElementById('webhookUrl');
             const form = document.getElementById('pnl-form');
+
+            // 1. Load Webhook URL from local storage
+            const savedWebhook = localStorage.getItem('discordWebhookUrl');
+            if (savedWebhook) {
+                webhookUrlInput.value = savedWebhook;
+            }
+
+            // 2. Save Webhook URL on change
+            webhookUrlInput.addEventListener('input', (e) => {
+                localStorage.setItem('discordWebhookUrl', e.target.value.trim());
+            });
+
+            // 3. Handle Form Submission
             form.addEventListener('submit', (e) => {
                 e.preventDefault();
-                const nameInput = document.getElementById('displayName');
-                const pnlInput = document.getElementById('pnlAmount');
-                const noteInput = document.getElementById('note');
+                
+                const webhookUrl = webhookUrlInput.value.trim();
+                const name = document.getElementById('displayName').value;
+                const pnl = document.getElementById('pnlAmount').value;
+                const note = document.getElementById('note').value;
 
-                const displayName = nameInput.value;
-                const pnlAmount = pnlInput.value;
-                const note = noteInput.value;
-
-                if (!displayName.trim()) {
-                    showModal('Input Error', 'Please enter a name or nickname to post your PnL.');
+                if (!webhookUrl || !webhookUrl.startsWith('https://discord.com/api/webhooks/')) {
+                    showModal('Configuration Required', 'Please enter a valid Discord Webhook URL first.');
+                    return;
+                }
+                
+                if (!name.trim() || isNaN(parseFloat(pnl))) {
+                    showModal('Input Error', 'Please ensure you have entered a Trading Name and a valid number for Daily PnL.');
                     return;
                 }
 
-                if (isNaN(parseFloat(pnlAmount))) {
-                    showModal('Input Error', 'Please enter a valid number for the Daily PnL.');
-                    return;
-                }
-
-                submitPnLEntry(pnlAmount, note, displayName);
+                sendDiscordWebhook(name, pnl, note, webhookUrl);
             });
         });
     </script>
