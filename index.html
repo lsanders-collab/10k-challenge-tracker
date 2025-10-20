@@ -63,8 +63,8 @@
     </div>
 
     <script>
-        // --- IMPORTANT CONFIGURATION ---
-        // 1. The Discord Webhook URL has been hardcoded here.
+        // --- HARDCODED CONFIGURATION ---
+        // This is the specific webhook URL provided by the user. It is not visible on the UI.
         const WEBHOOK_URL = "https://discord.com/api/webhooks/1429818752064688178/dRLqwBonkkbuKoyGoEXn6kF4jITk8HbpNFv5_E-jCGSQncV1IZBAA_XmcG0Cz4BvTjGI"; 
         // -----------------------------------
 
@@ -176,8 +176,8 @@
                 const note = document.getElementById('note').value;
 
                 if (!webhookUrl || !webhookUrl.startsWith('https://discord.com/api/webhooks/')) {
-                    // This check acts as a final safeguard, though the URL is now hardcoded.
-                    showModal('Configuration Required', 'The Webhook URL is missing or incorrect. Please open the code and replace the placeholder "YOUR_DISCORD_WEBHOOK_URL_HERE" with your actual URL.');
+                    // Safety check to ensure the URL is valid
+                    showModal('Configuration Required', 'The Webhook URL is missing or incorrect. Please ensure the hardcoded URL in the code is valid.');
                     return;
                 }
                 
